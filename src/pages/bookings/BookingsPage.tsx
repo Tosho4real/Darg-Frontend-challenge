@@ -366,25 +366,10 @@ export function BookingsPage() {
               />
             </label>
 
-            <label>
-              <span className="sr-only">Filter by status</span>
-              <select
-                className="h-10 w-full rounded border border-slate-300 px-3 text-sm capitalize"
-                value={filters.status}
-                onChange={(event) =>
-                  updateFilter(
-                    'status',
-                    event.target.value as BookingFilters['status'],
-                  )
-                }
-              >
-                {STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status === 'all' ? 'All statuses' : status}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <StatusFilterDropdown
+              value={filters.status}
+              onChange={(status) => updateFilter('status', status)}
+            />
 
             <label>
               <span className="sr-only">Filter by agent</span>
@@ -570,6 +555,64 @@ function EmptyState({
       <p className="mt-1 text-sm text-slate-600">{description}</p>
     </div>
   )
+}
+
+function StatusFilterDropdown({
+  value,
+  onChange,
+}: {
+  value: BookingFilters['status']
+  onChange: (status: BookingFilters['status']) => void
+}) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          className="flex h-10 w-full items-center justify-between rounded border border-slate-300 bg-white px-3 text-left text-sm font-medium text-slate-700 hover:border-slate-400 focus-visible:border-blue-600"
+          type="button"
+        >
+          <span>{formatStatusLabel(value)}</span>
+          <ChevronDown aria-hidden="true" size={16} />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          className="z-30 w-[--radix-dropdown-menu-trigger-width] rounded border border-slate-200 bg-white p-1 shadow-lg"
+          sideOffset={6}
+        >
+          <DropdownMenu.Label className="px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+            Filter status
+          </DropdownMenu.Label>
+          <DropdownMenu.RadioGroup
+            value={value}
+            onValueChange={(status) =>
+              onChange(status as BookingFilters['status'])
+            }
+          >
+            {STATUSES.map((status) => (
+              <DropdownMenu.RadioItem
+                key={status}
+                value={status}
+                className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-slate-700 outline-none hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
+              >
+                <span className="w-4">
+                  <DropdownMenu.ItemIndicator>✓</DropdownMenu.ItemIndicator>
+                </span>
+                {formatStatusLabel(status)}
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
+function formatStatusLabel(status: BookingStatus | 'all') {
+  if (status === 'all') return 'All statuses'
+
+  return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
 function BulkActionButton({
