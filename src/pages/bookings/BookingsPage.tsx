@@ -13,7 +13,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Check, ChevronDown, ChevronUp, Eye, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   BookingConflictError,
@@ -22,7 +22,7 @@ import {
 import { patchBookingsInCache } from '../../features/bookings/cache/bookingsCache'
 import { StatusBadge } from '../../features/bookings/components/StatusBadge'
 import { useAssignDriver } from '../../features/bookings/hooks/useAssignDriver'
-import { useInfiniteBookingsQuery } from '../../features/bookings/hooks/useBookingsQuery'
+import { useBookingsQuery } from '../../features/bookings/hooks/useBookingsQuery'
 import { useUpdateBookingStatus } from '../../features/bookings/hooks/useUpdateBookingStatus'
 import { useTablePreferencesStore } from '../../features/bookings/stores/tablePreferencesStore'
 import type {
@@ -56,7 +56,6 @@ export function BookingsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const tableContainerRef = useRef<HTMLDivElement>(null)
-  const loadMoreRef = useRef<HTMLDivElement>(null)
   const persistedColumnVisibility = useTablePreferencesStore(
     (state) => state.columnVisibility,
   )
@@ -69,6 +68,7 @@ export function BookingsPage() {
   )
 
   const [pageSize, setPageSize] = useState(persistedPageSize)
+  const [pageIndex, setPageIndex] = useState(0)
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'createdAt', desc: true },
   ])
@@ -83,16 +83,18 @@ export function BookingsPage() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [actionMessage, setActionMessage] = useState<string | null>(null)
 
-  const bookingQuery = useInfiniteBookingsQuery({
+  const bookingQuery = useBookingsQuery({
+    pageIndex,
     pageSize,
     filters,
     sorting: sorting as BookingSort[],
   })
-  const bookings = useMemo(
-    () => bookingQuery.data?.pages.flatMap((page) => page.rows) ?? [],
-    [bookingQuery.data],
-  )
-  const totalBookings = bookingQuery.data?.pages[0]?.total ?? 0
+  const bookings = bookingQuery.data?.rows ?? []
+  const totalBookings = bookingQuery.data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(totalBookings / pageSize))
+  const currentPage = Math.min(pageIndex + 1, pageCount)
+  const firstVisibleBooking = totalBookings === 0 ? 0 : pageIndex * pageSize + 1
+  const lastVisibleBooking = Math.min((pageIndex + 1) * pageSize, totalBookings)
   const statusMutation = useUpdateBookingStatus()
   const assignDriverMutation = useAssignDriver()
   const isOnline = useOfflineQueueStore((state) => state.isOnline)
@@ -111,7 +113,7 @@ export function BookingsPage() {
         size: 56,
         header: ({ table }) => (
           <input
-            aria-label="Select all loaded bookings"
+            aria-label="Select all bookings on this page"
             checked={table.getIsAllRowsSelected()}
             onChange={table.getToggleAllRowsSelectedHandler()}
             type="checkbox"
@@ -194,6 +196,7 @@ export function BookingsPage() {
     enableRowSelection: true,
     onSortingChange: (updater) => {
       setSorting(updater)
+      setPageIndex(0)
       setRowSelection({})
     },
     onColumnVisibilityChange: (updater) => {
@@ -221,40 +224,12 @@ export function BookingsPage() {
   const hasNoBookings =
     !bookingQuery.isLoading && !bookingQuery.isFetching && bookings.length === 0
 
-  useEffect(() => {
-    const target = loadMoreRef.current
-    const root = tableContainerRef.current
-    if (!target || !root) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries
-
-        if (
-          entry.isIntersecting &&
-          bookingQuery.hasNextPage &&
-          !bookingQuery.isFetchingNextPage
-        ) {
-          void bookingQuery.fetchNextPage()
-        }
-      },
-      { root, rootMargin: '160px' },
-    )
-
-    observer.observe(target)
-
-    return () => observer.disconnect()
-  }, [
-    bookingQuery.fetchNextPage,
-    bookingQuery.hasNextPage,
-    bookingQuery.isFetchingNextPage,
-  ])
-
   function updateFilter<Key extends keyof BookingFilters>(
     key: Key,
     value: BookingFilters[Key],
   ) {
     setFilters((current) => ({ ...current, [key]: value }))
+    setPageIndex(0)
     setRowSelection({})
   }
 
@@ -388,7 +363,7 @@ export function BookingsPage() {
             Booking Management
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Server-style filtering, sorting, infinite loading, persisted table
+            Server-side filtering, sorting, pagination, persisted table
             preferences, row selection, and bulk actions over 100,000 bookings.
           </p>
         </div>
@@ -556,30 +531,28 @@ export function BookingsPage() {
             />
           ) : null}
 
-          <div ref={loadMoreRef} className="p-4 text-center text-sm text-slate-600">
-            {bookingQuery.isFetchingNextPage ? 'Loading more bookings...' : null}
-            {!bookingQuery.hasNextPage && bookings.length > 0
-              ? 'End of bookings'
-              : null}
-          </div>
+          {bookingQuery.isFetching && !bookingQuery.isLoading ? (
+            <div className="p-4 text-center text-sm text-slate-600">
+              Refreshing page...
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-600" aria-live="polite">
             {selectedBookingIds.length} selected
-            {bookingQuery.isFetching && !bookingQuery.isFetchingNextPage
-              ? ' | Refreshing...'
-              : ''}
+            {bookingQuery.isFetching && !bookingQuery.isLoading ? ' | Refreshing...' : ''}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <select
-              aria-label="Rows loaded per server request"
+              aria-label="Rows per page"
               className="h-9 rounded border border-slate-300 px-2 text-sm"
               value={pageSize}
               onChange={(event) => {
                 const nextPageSize = Number(event.target.value)
                 setPageSize(nextPageSize)
                 setPersistedPageSize(nextPageSize)
+                setPageIndex(0)
                 setRowSelection({})
               }}
             >
@@ -590,16 +563,33 @@ export function BookingsPage() {
               ))}
             </select>
             <span className="text-sm text-slate-600">
-              Showing {bookings.length.toLocaleString()} of{' '}
-              {totalBookings.toLocaleString()}
+              Showing {firstVisibleBooking.toLocaleString()}-
+              {lastVisibleBooking.toLocaleString()} of {totalBookings.toLocaleString()}
             </span>
             <button
               className="h-9 rounded border border-slate-300 px-3 text-sm disabled:opacity-50"
-              disabled={!bookingQuery.hasNextPage || bookingQuery.isFetchingNextPage}
-              onClick={() => void bookingQuery.fetchNextPage()}
+              disabled={pageIndex === 0 || bookingQuery.isFetching}
+              onClick={() => {
+                setPageIndex((current) => Math.max(0, current - 1))
+                setRowSelection({})
+              }}
               type="button"
             >
-              Load more
+              Previous
+            </button>
+            <span className="text-sm text-slate-600">
+              Page {currentPage.toLocaleString()} of {pageCount.toLocaleString()}
+            </span>
+            <button
+              className="h-9 rounded border border-slate-300 px-3 text-sm disabled:opacity-50"
+              disabled={pageIndex >= pageCount - 1 || bookingQuery.isFetching}
+              onClick={() => {
+                setPageIndex((current) => Math.min(pageCount - 1, current + 1))
+                setRowSelection({})
+              }}
+              type="button"
+            >
+              Next
             </button>
           </div>
         </div>

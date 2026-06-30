@@ -2,7 +2,7 @@
 
 ## Dataset Strategy
 
-The mock API generates 100,000 bookings in memory, but the UI never renders the full dataset. The bookings page requests only the current server-style page using the active table state:
+The mock API generates 100,000 bookings in memory, but the UI never renders the full dataset. The bookings page requests only the current server-side paginated page using the active table state:
 
 - `pageIndex`
 - `pageSize`
