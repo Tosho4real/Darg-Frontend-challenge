@@ -11,13 +11,17 @@ import {
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ChevronDown, ChevronUp, Eye, Search } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Eye, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BookingConflictError } from '../../features/bookings/api/bookingsApi'
+import {
+  BookingConflictError,
+  getSuggestedDriverName,
+} from '../../features/bookings/api/bookingsApi'
 import { patchBookingsInCache } from '../../features/bookings/cache/bookingsCache'
 import { StatusBadge } from '../../features/bookings/components/StatusBadge'
+import { useAssignDriver } from '../../features/bookings/hooks/useAssignDriver'
 import { useInfiniteBookingsQuery } from '../../features/bookings/hooks/useBookingsQuery'
 import { useUpdateBookingStatus } from '../../features/bookings/hooks/useUpdateBookingStatus'
 import { useTablePreferencesStore } from '../../features/bookings/stores/tablePreferencesStore'
@@ -89,6 +93,7 @@ export function BookingsPage() {
   )
   const totalBookings = bookingQuery.data?.pages[0]?.total ?? 0
   const statusMutation = useUpdateBookingStatus()
+  const assignDriverMutation = useAssignDriver()
   const isOnline = useOfflineQueueStore((state) => state.isOnline)
   const queuedActionCount = useOfflineQueueStore(
     (state) => state.queuedActions.length,
@@ -144,6 +149,13 @@ export function BookingsPage() {
         size: 150,
         header: 'Agent',
         enableSorting: false,
+      },
+      {
+        accessorKey: 'driverName',
+        size: 180,
+        header: 'Driver',
+        enableSorting: false,
+        cell: ({ row }) => row.original.driverName ?? 'Unassigned',
       },
       {
         accessorKey: 'status',
@@ -258,6 +270,7 @@ export function BookingsPage() {
 
     if (!isOnline) {
       enqueueAction({
+        type: 'status_update',
         bookingIds: selectedBookingIds,
         status,
         expectedVersions,
@@ -300,6 +313,68 @@ export function BookingsPage() {
       }
 
       setActionMessage('Update failed. Your previous table state was restored.')
+    }
+  }
+
+  async function runAssignDriverAction() {
+    if (selectedBookingIds.length === 0) return
+
+    const driverName = getSuggestedDriverName(selectedBookingIds)
+    const expectedVersions = Object.fromEntries(
+      table
+        .getSelectedRowModel()
+        .rows.map((row) => [row.original.id, row.original.version]),
+    )
+
+    setActionMessage(null)
+
+    if (!isOnline) {
+      enqueueAction({
+        type: 'assign_driver',
+        bookingIds: selectedBookingIds,
+        driverName,
+        expectedVersions,
+      })
+      patchBookingsInCache(queryClient, selectedBookingIds, (booking) => ({
+        ...booking,
+        driverName,
+        version: booking.version + 1,
+      }))
+      setActionMessage(
+        `${selectedBookingIds.length} booking${
+          selectedBookingIds.length === 1 ? '' : 's'
+        } queued for driver assignment to ${driverName}.`,
+      )
+      setRowSelection({})
+      return
+    }
+
+    try {
+      await assignDriverMutation.mutateAsync({
+        bookingIds: selectedBookingIds,
+        driverName,
+        expectedVersions,
+      })
+      setActionMessage(
+        `${driverName} assigned to ${selectedBookingIds.length} booking${
+          selectedBookingIds.length === 1 ? '' : 's'
+        }.`,
+      )
+      setRowSelection({})
+    } catch (error) {
+      if (error instanceof BookingConflictError) {
+        const latest = error.latestBookings
+          .map((booking) => `${booking.id}: version ${booking.version}`)
+          .join(', ')
+        setActionMessage(
+          `Conflict detected. Latest server state restored (${latest}).`,
+        )
+        return
+      }
+
+      setActionMessage(
+        'Driver assignment failed. Your previous table state was restored.',
+      )
     }
   }
 
@@ -387,6 +462,14 @@ export function BookingsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <ColumnVisibilityMenu table={table} />
             <BulkActionButton
+              disabled={
+                selectedBookingIds.length === 0 || assignDriverMutation.isPending
+              }
+              onClick={() => void runAssignDriverAction()}
+            >
+              Assign Driver
+            </BulkActionButton>
+            <BulkActionButton
               disabled={selectedBookingIds.length === 0 || statusMutation.isPending}
               onClick={() => void runBulkAction('approved')}
             >
@@ -412,7 +495,7 @@ export function BookingsPage() {
           aria-label="Virtualized bookings table"
           className="max-h-[620px] overflow-auto"
         >
-          <table className="grid min-w-[1036px] border-separate border-spacing-0 text-left text-sm">
+          <table className="grid min-w-[1216px] border-separate border-spacing-0 text-left text-sm">
             <thead className="sticky top-0 z-[1] grid bg-slate-50 text-xs uppercase text-slate-500">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id} className="flex w-full">
@@ -597,7 +680,9 @@ function StatusFilterDropdown({
                 className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-slate-700 outline-none hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
               >
                 <span className="w-4">
-                  <DropdownMenu.ItemIndicator>✓</DropdownMenu.ItemIndicator>
+                  <DropdownMenu.ItemIndicator>
+                    <Check size={14} />
+                  </DropdownMenu.ItemIndicator>
                 </span>
                 {formatStatusLabel(status)}
               </DropdownMenu.RadioItem>
@@ -695,7 +780,9 @@ function ColumnVisibilityMenu({
                 onSelect={(event) => event.preventDefault()}
               >
                 <span className="w-4 text-blue-600">
-                  <DropdownMenu.ItemIndicator>✓</DropdownMenu.ItemIndicator>
+                  <DropdownMenu.ItemIndicator>
+                    <Check size={14} />
+                  </DropdownMenu.ItemIndicator>
                 </span>
                 <span className="capitalize">
                   {column.id.replace(/([A-Z])/g, ' $1')}

@@ -79,7 +79,7 @@ Trade-off:
 
 ### Optimistic Updates with Rollback
 
-Mutations snapshot affected booking queries, optimistically patch status, and rollback on failure. Conflicts restore latest server state.
+Mutations snapshot affected booking queries, optimistically patch status or driver assignment, and rollback on failure. Conflicts restore latest server state.
 
 Benefit:
 

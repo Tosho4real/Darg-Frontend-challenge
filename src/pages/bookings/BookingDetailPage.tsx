@@ -102,6 +102,10 @@ export function BookingDetailPage() {
             <DetailItem label="Customer" value={booking.customerName} />
             <DetailItem label="Agent" value={booking.agentName} />
             <DetailItem
+              label="Driver"
+              value={booking.driverName ?? 'Unassigned'}
+            />
+            <DetailItem
               label="Amount"
               value={currencyFormatter.format(booking.amount)}
             />

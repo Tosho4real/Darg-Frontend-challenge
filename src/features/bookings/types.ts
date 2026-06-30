@@ -9,6 +9,7 @@ export interface Booking {
   id: string
   customerName: string
   agentName: string
+  driverName?: string
   status: BookingStatus
   amount: number
   createdAt: string

@@ -42,6 +42,14 @@ const CUSTOMER_LAST_NAMES = [
   'Adeyemi',
 ]
 const AGENTS = ['John', 'Mary', 'David', 'Aisha', 'Priya', 'Daniel']
+const DRIVERS = [
+  'Alex Morgan',
+  'Sam Rivera',
+  'Taylor Brooks',
+  'Jordan Lee',
+  'Casey Stone',
+  'Riley Adams',
+]
 const STATUSES: BookingStatus[] = [
   'pending',
   'approved',
@@ -73,6 +81,7 @@ function createBookings(count: number): Booking[] {
       id: `BKG-${idNumber.toString().padStart(6, '0')}`,
       customerName: `${firstName} ${lastName}`,
       agentName,
+      driverName: index % 4 === 0 ? DRIVERS[index % DRIVERS.length] : undefined,
       status,
       amount: 45 + ((index * 37) % 950),
       createdAt: new Date(now - index * 18 * 60_000).toISOString(),
@@ -152,6 +161,55 @@ export async function updateBookingStatus({
   }
 
   return updated
+}
+
+export async function assignDriverToBookings({
+  bookingIds,
+  driverName,
+  expectedVersions,
+}: {
+  bookingIds: string[]
+  driverName: string
+  expectedVersions: Record<string, number>
+}) {
+  await wait(500)
+
+  const store = getBookingsStore()
+  const updated: Booking[] = []
+  const conflicts: Booking[] = []
+
+  for (const bookingId of bookingIds) {
+    const index = store.findIndex((booking) => booking.id === bookingId)
+    if (index === -1) continue
+
+    if (store[index].version !== expectedVersions[bookingId]) {
+      conflicts.push(store[index])
+      continue
+    }
+
+    const nextBooking = {
+      ...store[index],
+      driverName,
+      version: store[index].version + 1,
+    }
+    store[index] = nextBooking
+    updated.push(nextBooking)
+  }
+
+  if (conflicts.length > 0) {
+    throw new BookingConflictError(conflicts)
+  }
+
+  return updated
+}
+
+export function getSuggestedDriverName(bookingIds: string[]) {
+  const seed = bookingIds.reduce((total, bookingId) => {
+    const numericId = Number(bookingId.replace('BKG-', ''))
+    return total + (Number.isNaN(numericId) ? 0 : numericId)
+  }, 0)
+
+  return DRIVERS[seed % DRIVERS.length]
 }
 
 export function createMockBookingUpdatedEvent() {

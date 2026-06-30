@@ -56,7 +56,7 @@ npm run build
 - Column visibility controls
 - Persisted table preferences with Zustand
 - Row selection
-- Bulk actions
+- Bulk actions: approve, reject, cancel, assign driver
 - Virtualized table body
 - Booking detail links
 
@@ -118,6 +118,7 @@ interface Booking {
   id: string
   customerName: string
   agentName: string
+  driverName?: string
   status: BookingStatus
   amount: number
   createdAt: string

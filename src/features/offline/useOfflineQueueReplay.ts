@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import {
+  assignDriverToBookings,
   BookingConflictError,
   updateBookingStatus,
 } from '../bookings/api/bookingsApi'
@@ -31,13 +32,19 @@ export function useOfflineQueueReplay() {
 
       for (const action of queuedActions) {
         try {
-          const updatedBookings = await updateBookingStatus(action)
+          const updatedBookings =
+            action.type === 'status_update'
+              ? await updateBookingStatus(action)
+              : await assignDriverToBookings(action)
           patchResolvedBookingsInCache(queryClient, updatedBookings)
           updatedBookings.forEach((booking) => {
             const activity = recordBookingActivity({
-              action: `${action.status} booking`,
+              action:
+                action.type === 'status_update'
+                  ? `${action.status} booking`
+                  : `assigned ${action.driverName} to`,
               bookingId: booking.id,
-              status: booking.status,
+              status: action.type === 'status_update' ? booking.status : undefined,
             })
             prependActivityToCache(queryClient, activity)
           })

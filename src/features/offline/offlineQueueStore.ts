@@ -2,19 +2,36 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { BookingStatus } from '../bookings/types'
 
-export interface OfflineBookingAction {
+interface OfflineBookingActionBase {
   id: string
   bookingIds: string[]
-  status: BookingStatus
   expectedVersions: Record<string, number>
   createdAt: string
 }
+
+export interface OfflineStatusAction extends OfflineBookingActionBase {
+  type: 'status_update'
+  status: BookingStatus
+}
+
+export interface OfflineAssignDriverAction extends OfflineBookingActionBase {
+  type: 'assign_driver'
+  driverName: string
+}
+
+export type OfflineBookingAction =
+  | OfflineStatusAction
+  | OfflineAssignDriverAction
+
+type OfflineBookingActionInput =
+  | Omit<OfflineStatusAction, 'id' | 'createdAt'>
+  | Omit<OfflineAssignDriverAction, 'id' | 'createdAt'>
 
 interface OfflineQueueState {
   isOnline: boolean
   lastReplayMessage: string | null
   queuedActions: OfflineBookingAction[]
-  enqueueAction: (action: Omit<OfflineBookingAction, 'id' | 'createdAt'>) => void
+  enqueueAction: (action: OfflineBookingActionInput) => void
   removeAction: (actionId: string) => void
   setOnline: (isOnline: boolean) => void
   setLastReplayMessage: (message: string | null) => void

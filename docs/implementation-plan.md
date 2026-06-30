@@ -2,7 +2,7 @@
 
 ## Step 1: Foundation
 
-- Scaffold Vite React TypeScript.
+- Initialize Vite React TypeScript.
 - Add React Query, React Router, Tailwind CSS, TanStack Table, TanStack Virtual, Zustand, and testing tools.
 - Replace the Vite starter UI with the dashboard shell.
 - Add mock booking data and server-style query functions.
@@ -11,7 +11,7 @@
 
 - Server-side pagination, sorting, filtering, and search.
 - Persist column visibility and page size.
-- Row selection and bulk status actions.
+- Row selection, bulk status actions, and driver assignment.
 - Add virtualization once the table behaviors are stable.
 
 ## Step 3: Real-Time Updates
@@ -23,7 +23,7 @@
 
 ## Step 4: Optimistic Updates and Conflicts
 
-- Optimistically patch status changes.
+- Optimistically patch status changes and driver assignment.
 - Snapshot and rollback failed updates.
 - Use booking versions to detect stale writes.
 - Show conflict messages when server state has moved on.
