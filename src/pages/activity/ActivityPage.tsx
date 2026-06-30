@@ -1,6 +1,7 @@
 import { Loader2, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useDebouncedValue } from "../../app/hooks/useDebouncedValue";
 import { useActivityFeed } from "../../features/activity/hooks/useActivityFeed";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -10,9 +11,10 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 
 export function ActivityPage() {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const feedScrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const activityQuery = useActivityFeed(search);
+  const activityQuery = useActivityFeed(debouncedSearch);
   const activities = useMemo(
     () => {
       const uniqueActivities = new Map(

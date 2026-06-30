@@ -15,6 +15,7 @@ import { Check, ChevronDown, ChevronUp, Eye, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useDebouncedValue } from '../../app/hooks/useDebouncedValue'
 import {
   BookingConflictError,
   getSuggestedDriverName,
@@ -82,11 +83,21 @@ export function BookingsPage() {
   )
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const debouncedSearch = useDebouncedValue(filters.search)
+  const debouncedAgentName = useDebouncedValue(filters.agentName)
+  const queryFilters = useMemo(
+    () => ({
+      status: filters.status,
+      search: debouncedSearch,
+      agentName: debouncedAgentName,
+    }),
+    [debouncedAgentName, debouncedSearch, filters.status],
+  )
 
   const bookingQuery = useBookingsQuery({
     pageIndex,
     pageSize,
-    filters,
+    filters: queryFilters,
     sorting: sorting as BookingSort[],
   })
   const bookings = bookingQuery.data?.rows ?? []

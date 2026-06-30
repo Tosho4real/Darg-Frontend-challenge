@@ -25,6 +25,19 @@ Trade-off:
 
 - The mock API still filters an in-memory array because there is no backend. In a real system this work would move to database queries or indexed search.
 
+### Debounced Search
+
+Booking and activity search inputs keep local text state immediately, but pass debounced values into React Query.
+
+Benefit:
+
+- Typing does not create a new query key on every keystroke.
+- Backend pressure would be lower in a real deployment.
+
+Trade-off:
+
+- Search results intentionally lag behind typing by a short delay.
+
 ### Virtualized Table Body
 
 The bookings table uses `@tanstack/react-virtual` to render only visible rows plus overscan.
@@ -108,12 +121,10 @@ Trade-off:
 - The mock API filters and sorts 100,000 in-memory bookings. This is acceptable for the challenge but should be moved server-side in production.
 - Realtime cache patching scans cached pages. This is fine for a few cached pages, but a very long-lived session with many cached pages may need targeted cache indexing.
 - Infinite feeds can grow over long sessions. Production apps often cap retained pages or use cache garbage collection based on usage.
-- Search currently fires on each keystroke through query keys. A short debounce would reduce backend pressure in production.
 
 ## Production Follow-Ups
 
 - Move mock API behavior behind HTTP endpoints or MSW handlers.
 - Add backend cursor contracts for activity and timeline feeds.
-- Add debounced search inputs.
 - Add metrics for mutation latency, conflict rate, replay success rate, and socket event volume.
 - Add browser-level Playwright tests for critical flows.

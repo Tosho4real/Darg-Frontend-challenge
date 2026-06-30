@@ -52,7 +52,7 @@ npm run build
 
 - Server-style pagination
 - Server-style sorting
-- Server-style filtering and search
+- Server-style filtering and debounced search
 - Column visibility controls
 - Persisted table preferences with Zustand
 - Row selection
@@ -154,5 +154,4 @@ React Query owns server/cache state. Zustand owns small client state such as tab
 ## Trade-Offs
 
 - The backend is simulated with in-memory async functions because the challenge provides no API.
-- Search is immediate rather than debounced. In production, a short debounce would reduce backend pressure.
 - Activity and timeline infinite feeds retain loaded pages. Production implementations may cap retained pages for very long sessions.
