@@ -459,7 +459,7 @@ export function BookingsPage() {
             </label>
           </div>
 
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 xl:justify-end">
+          <div className="grid min-w-0 grid-cols-2 gap-2 min-[430px]:grid-cols-3 sm:flex sm:flex-wrap sm:items-center xl:justify-end">
             <ColumnVisibilityMenu table={table} />
             <BulkActionButton
               disabled={
@@ -711,7 +711,7 @@ function BulkActionButton({
 }) {
   return (
     <button
-      className="h-10 shrink-0 whitespace-nowrap rounded bg-slate-900 px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+      className="h-10 w-full shrink-0 whitespace-nowrap rounded bg-slate-900 px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
       disabled={disabled}
       onClick={onClick}
       type="button"
@@ -755,7 +755,7 @@ function ColumnVisibilityMenu({
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button
-          className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded border border-slate-300 bg-white px-3 text-sm font-medium"
+          className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded border border-slate-300 bg-white px-3 text-sm font-medium sm:w-auto"
           type="button"
         >
           <Eye aria-hidden="true" size={16} />
