@@ -14,7 +14,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Check, ChevronDown, ChevronUp, Eye, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   BookingConflictError,
   getSuggestedDriverName,
@@ -54,6 +54,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
 
 export function BookingsPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const persistedColumnVisibility = useTablePreferencesStore(
@@ -541,6 +542,7 @@ export function BookingsPage() {
                     key={tableRows[virtualRow.index].id}
                     row={tableRows[virtualRow.index]}
                     top={virtualRow.start}
+                    onOpenBooking={(bookingId) => navigate(`/bookings/${bookingId}`)}
                   />
                 ))}
               </tbody>
@@ -724,14 +726,38 @@ function BulkActionButton({
 function VirtualizedBookingRow({
   row,
   top,
+  onOpenBooking,
 }: {
   row: Row<Booking>
   top: number
+  onOpenBooking: (bookingId: string) => void
 }) {
+  function shouldIgnoreNavigation(target: EventTarget | null) {
+    return (
+      target instanceof Element &&
+      Boolean(target.closest('a, button, input, select, textarea, label'))
+    )
+  }
+
   return (
     <tr
-      className="absolute flex w-full hover:bg-slate-50"
+      aria-label={`Open booking ${row.original.id}`}
+      className="absolute flex w-full cursor-pointer hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+      onClick={(event) => {
+        if (shouldIgnoreNavigation(event.target)) return
+        onOpenBooking(row.original.id)
+      }}
+      onKeyDown={(event) => {
+        if (shouldIgnoreNavigation(event.target)) return
+
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpenBooking(row.original.id)
+        }
+      }}
+      role="link"
       style={{ transform: `translateY(${top}px)` }}
+      tabIndex={0}
     >
       {row.getVisibleCells().map((cell) => (
         <td
