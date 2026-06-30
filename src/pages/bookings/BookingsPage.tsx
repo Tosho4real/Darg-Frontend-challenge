@@ -424,9 +424,9 @@ export function BookingsPage() {
             <p aria-live="polite">{lastReplayMessage}</p>
           </div>
         ) : null}
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="relative block">
+        <div className="grid gap-4 border-b border-slate-200 p-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+          <div className="grid min-w-0 gap-3 md:grid-cols-3">
+            <label className="relative block min-w-0">
               <span className="sr-only">Search bookings</span>
               <Search
                 aria-hidden="true"
@@ -446,7 +446,7 @@ export function BookingsPage() {
               onChange={(status) => updateFilter('status', status)}
             />
 
-            <label>
+            <label className="min-w-0">
               <span className="sr-only">Filter by agent</span>
               <input
                 className="h-10 w-full rounded border border-slate-300 px-3 text-sm"
@@ -459,7 +459,7 @@ export function BookingsPage() {
             </label>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 xl:justify-end">
             <ColumnVisibilityMenu table={table} />
             <BulkActionButton
               disabled={
@@ -651,7 +651,7 @@ function StatusFilterDropdown({
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button
-          className="flex h-10 w-full items-center justify-between rounded border border-slate-300 bg-white px-3 text-left text-sm font-medium text-slate-700 hover:border-slate-400 focus-visible:border-blue-600"
+          className="flex h-10 w-full min-w-0 items-center justify-between rounded border border-slate-300 bg-white px-3 text-left text-sm font-medium text-slate-700 hover:border-slate-400 focus-visible:border-blue-600"
           type="button"
         >
           <span>{formatStatusLabel(value)}</span>
@@ -711,7 +711,7 @@ function BulkActionButton({
 }) {
   return (
     <button
-      className="h-10 rounded bg-slate-900 px-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+      className="h-10 shrink-0 whitespace-nowrap rounded bg-slate-900 px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
       disabled={disabled}
       onClick={onClick}
       type="button"
@@ -755,7 +755,7 @@ function ColumnVisibilityMenu({
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button
-          className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium"
+          className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded border border-slate-300 bg-white px-3 text-sm font-medium"
           type="button"
         >
           <Eye aria-hidden="true" size={16} />
