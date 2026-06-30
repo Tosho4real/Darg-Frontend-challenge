@@ -18,6 +18,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
 export function BookingDetailPage() {
   const { bookingId = '' } = useParams()
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const timelineContainerRef = useRef<HTMLDivElement>(null)
   const bookingQuery = useBookingQuery(bookingId)
   const timelineQuery = useBookingTimeline(bookingId)
   const timelineEvents = useMemo(
@@ -27,19 +28,23 @@ export function BookingDetailPage() {
 
   useEffect(() => {
     const target = loadMoreRef.current
-    if (!target) return
+    const root = timelineContainerRef.current
+    if (!target || !root) return
 
-    const observer = new IntersectionObserver((entries) => {
-      const [entry] = entries
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
 
-      if (
-        entry.isIntersecting &&
-        timelineQuery.hasNextPage &&
-        !timelineQuery.isFetchingNextPage
-      ) {
-        void timelineQuery.fetchNextPage()
-      }
-    })
+        if (
+          entry.isIntersecting &&
+          timelineQuery.hasNextPage &&
+          !timelineQuery.isFetchingNextPage
+        ) {
+          void timelineQuery.fetchNextPage()
+        }
+      },
+      { root, rootMargin: '120px' },
+    )
 
     observer.observe(target)
 
@@ -86,8 +91,8 @@ export function BookingDetailPage() {
         Back to bookings
       </Link>
 
-      <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-        <aside className="border border-slate-200 bg-white p-5">
+      <div className="grid gap-5 lg:grid-cols-[360px_1fr] lg:items-start">
+        <aside className="border border-slate-200 bg-white p-5 lg:sticky lg:top-28">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-blue-700">Booking</p>
@@ -118,7 +123,7 @@ export function BookingDetailPage() {
         </aside>
 
         <section
-          className="border border-slate-200 bg-white"
+          className="overflow-hidden border border-slate-200 bg-white"
           aria-labelledby="timeline-heading"
         >
           <div className="border-b border-slate-200 p-5">
@@ -130,42 +135,47 @@ export function BookingDetailPage() {
             </p>
           </div>
 
-          <ol className="divide-y divide-slate-100" aria-label="Booking timeline">
-            {timelineEvents.map((item) => (
-              <li key={item.id} className="grid grid-cols-[28px_1fr] gap-3 p-5">
-                <div className="relative flex justify-center">
-                  <span className="mt-1 h-3 w-3 rounded-full bg-blue-600" />
-                  <span className="absolute top-5 h-[calc(100%+20px)] w-px bg-slate-200" />
-                </div>
-                <div>
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="font-medium text-slate-950">{item.event}</p>
-                    <time
-                      className="text-sm text-slate-500"
-                      dateTime={item.timestamp}
-                    >
-                      {dateFormatter.format(new Date(item.timestamp))}
-                    </time>
+          <div
+            ref={timelineContainerRef}
+            className="max-h-[70vh] overflow-y-auto lg:max-h-[calc(100vh-220px)]"
+          >
+            <ol className="divide-y divide-slate-100" aria-label="Booking timeline">
+              {timelineEvents.map((item) => (
+                <li key={item.id} className="grid grid-cols-[28px_1fr] gap-3 p-5">
+                  <div className="relative flex justify-center">
+                    <span className="mt-1 h-3 w-3 rounded-full bg-blue-600" />
+                    <span className="absolute top-5 h-[calc(100%+20px)] w-px bg-slate-200" />
                   </div>
-                  <p className="mt-1 text-sm text-slate-600">{item.details}</p>
-                  <p className="mt-2 text-xs font-medium uppercase text-slate-500">
-                    {item.actorName}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
+                  <div>
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="font-medium text-slate-950">{item.event}</p>
+                      <time
+                        className="text-sm text-slate-500"
+                        dateTime={item.timestamp}
+                      >
+                        {dateFormatter.format(new Date(item.timestamp))}
+                      </time>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">{item.details}</p>
+                    <p className="mt-2 text-xs font-medium uppercase text-slate-500">
+                      {item.actorName}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
 
-          <div ref={loadMoreRef} className="p-5 text-center text-sm text-slate-600">
-            {timelineQuery.isFetchingNextPage ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="animate-spin" size={16} />
-                Loading more events
-              </span>
-            ) : null}
-            {!timelineQuery.hasNextPage && timelineEvents.length > 0
-              ? 'End of timeline'
-              : null}
+            <div ref={loadMoreRef} className="p-5 text-center text-sm text-slate-600">
+              {timelineQuery.isFetchingNextPage ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="animate-spin" size={16} />
+                  Loading more events
+                </span>
+              ) : null}
+              {!timelineQuery.hasNextPage && timelineEvents.length > 0
+                ? 'End of timeline'
+                : null}
+            </div>
           </div>
         </section>
       </div>
