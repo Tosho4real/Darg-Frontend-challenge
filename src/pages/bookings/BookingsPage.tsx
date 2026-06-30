@@ -198,6 +198,7 @@ export function BookingsPage() {
       setSorting(updater)
       setPageIndex(0)
       setRowSelection({})
+      resetTableScroll()
     },
     onColumnVisibilityChange: (updater) => {
       setColumnVisibility((current) => {
@@ -224,6 +225,14 @@ export function BookingsPage() {
   const hasNoBookings =
     !bookingQuery.isLoading && !bookingQuery.isFetching && bookings.length === 0
 
+  function resetTableScroll() {
+    rowVirtualizer.scrollToIndex(0)
+
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollLeft = 0
+    }
+  }
+
   function updateFilter<Key extends keyof BookingFilters>(
     key: Key,
     value: BookingFilters[Key],
@@ -231,6 +240,7 @@ export function BookingsPage() {
     setFilters((current) => ({ ...current, [key]: value }))
     setPageIndex(0)
     setRowSelection({})
+    resetTableScroll()
   }
 
   async function runBulkAction(status: BookingStatus) {
@@ -554,6 +564,7 @@ export function BookingsPage() {
                 setPersistedPageSize(nextPageSize)
                 setPageIndex(0)
                 setRowSelection({})
+                resetTableScroll()
               }}
             >
               {[25, 50, 100, 250, 500].map((pageSizeOption) => (
@@ -572,6 +583,7 @@ export function BookingsPage() {
               onClick={() => {
                 setPageIndex((current) => Math.max(0, current - 1))
                 setRowSelection({})
+                resetTableScroll()
               }}
               type="button"
             >
@@ -586,6 +598,7 @@ export function BookingsPage() {
               onClick={() => {
                 setPageIndex((current) => Math.min(pageCount - 1, current + 1))
                 setRowSelection({})
+                resetTableScroll()
               }}
               type="button"
             >
