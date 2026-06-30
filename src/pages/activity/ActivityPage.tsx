@@ -10,6 +10,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 
 export function ActivityPage() {
   const [search, setSearch] = useState("");
+  const feedScrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const activityQuery = useActivityFeed(search);
   const activities = useMemo(
@@ -28,19 +29,23 @@ export function ActivityPage() {
 
   useEffect(() => {
     const target = loadMoreRef.current;
-    if (!target) return;
+    const root = feedScrollRef.current;
+    if (!target || !root) return;
 
-    const observer = new IntersectionObserver((entries) => {
-      const [entry] = entries;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
 
-      if (
-        entry.isIntersecting &&
-        activityQuery.hasNextPage &&
-        !activityQuery.isFetchingNextPage
-      ) {
-        void activityQuery.fetchNextPage();
-      }
-    });
+        if (
+          entry.isIntersecting &&
+          activityQuery.hasNextPage &&
+          !activityQuery.isFetchingNextPage
+        ) {
+          void activityQuery.fetchNextPage();
+        }
+      },
+      { root, rootMargin: "160px" },
+    );
 
     observer.observe(target);
 
@@ -52,8 +57,11 @@ export function ActivityPage() {
   ]);
 
   return (
-    <section className="space-y-5" aria-labelledby="activity-heading">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <section
+      className="flex h-[calc(100vh-9.5rem)] min-h-[520px] flex-col gap-5"
+      aria-labelledby="activity-heading"
+    >
+      <div className="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-medium text-blue-700">Auditability</p>
           <h2 id="activity-heading" className="text-2xl font-semibold">
@@ -69,8 +77,8 @@ export function ActivityPage() {
         </div>
       </div>
 
-      <div className="border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 p-4">
+      <div className="flex min-h-0 flex-1 flex-col border border-slate-200 bg-white">
+        <div className="shrink-0 border-b border-slate-200 p-4">
           <label className="relative block max-w-xl">
             <span className="sr-only">Search activity</span>
             <Search
@@ -87,66 +95,74 @@ export function ActivityPage() {
           </label>
         </div>
 
-        {activityQuery.isLoading ? (
-          <ActivitySkeleton />
-        ) : (
-          <ol className="divide-y divide-slate-100" aria-label="Activity events">
-            {activities.map((activity) => (
-              <li key={activity.id} className="p-5">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm text-slate-900">
-                      <span className="font-semibold">{activity.actorName}</span>{" "}
-                      {activity.action}{" "}
-                      <Link
-                        className="font-semibold text-blue-700 hover:text-blue-900 hover:underline"
-                        to={`/bookings/${activity.bookingId}`}
-                      >
-                        {activity.bookingId}
-                      </Link>
-                    </p>
-                    {activity.status ? (
-                      <p className="mt-1 text-xs font-medium uppercase text-slate-500">
-                        Status: {activity.status}
-                      </p>
-                    ) : null}
-                  </div>
-                  <time
-                    className="text-sm text-slate-500"
-                    dateTime={activity.createdAt}
-                  >
-                    {dateFormatter.format(new Date(activity.createdAt))}
-                  </time>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-
-        {activities.length === 0 && !activityQuery.isLoading ? (
-          <div className="p-10 text-center">
-            <p className="text-sm font-semibold text-slate-900">
-              No activity found
-            </p>
-            <p className="mt-1 text-sm text-slate-600">
-              Adjust your search to find matching audit events.
-            </p>
-          </div>
-        ) : null}
-
         <div
-          ref={loadMoreRef}
-          className="p-5 text-center text-sm text-slate-600"
+          ref={feedScrollRef}
+          className="min-h-0 flex-1 overflow-y-auto"
+          aria-label="Scrollable activity list"
         >
-          {activityQuery.isFetchingNextPage ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="animate-spin" size={16} />
-              Loading activity
-            </span>
+          {activityQuery.isLoading ? (
+            <ActivitySkeleton />
+          ) : (
+            <ol className="divide-y divide-slate-100" aria-label="Activity events">
+              {activities.map((activity) => (
+                <li key={activity.id} className="p-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm text-slate-900">
+                        <span className="font-semibold">
+                          {activity.actorName}
+                        </span>{" "}
+                        {activity.action}{" "}
+                        <Link
+                          className="font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+                          to={`/bookings/${activity.bookingId}`}
+                        >
+                          {activity.bookingId}
+                        </Link>
+                      </p>
+                      {activity.status ? (
+                        <p className="mt-1 text-xs font-medium uppercase text-slate-500">
+                          Status: {activity.status}
+                        </p>
+                      ) : null}
+                    </div>
+                    <time
+                      className="text-sm text-slate-500"
+                      dateTime={activity.createdAt}
+                    >
+                      {dateFormatter.format(new Date(activity.createdAt))}
+                    </time>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {activities.length === 0 && !activityQuery.isLoading ? (
+            <div className="p-10 text-center">
+              <p className="text-sm font-semibold text-slate-900">
+                No activity found
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Adjust your search to find matching audit events.
+              </p>
+            </div>
           ) : null}
-          {!activityQuery.hasNextPage && activities.length > 0
-            ? "End of activity feed"
-            : null}
+
+          <div
+            ref={loadMoreRef}
+            className="p-5 text-center text-sm text-slate-600"
+          >
+            {activityQuery.isFetchingNextPage ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="animate-spin" size={16} />
+                Loading activity
+              </span>
+            ) : null}
+            {!activityQuery.hasNextPage && activities.length > 0
+              ? "End of activity feed"
+              : null}
+          </div>
         </div>
       </div>
     </section>
