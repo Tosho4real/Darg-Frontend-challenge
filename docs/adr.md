@@ -1,47 +1,100 @@
 # Architecture Decision Record
 
+## Status
+
+Accepted for the take-home challenge.
+
 ## Context
 
-The challenge asks for a production-grade booking operations dashboard that can handle large datasets, server-driven tables, real-time updates, stale data, optimistic actions, offline replay, timelines, activity auditability, and accessibility.
+The application is a booking operations dashboard for a marketplace with a large
+booking dataset. Operations agents need to view, filter, update, and audit
+bookings while handling real-time updates, stale data, conflicts, and offline
+actions.
 
-The application has no real backend, so the API layer is simulated in memory while preserving backend-like contracts: pagination, sorting, filtering, cursors, versions, and conflict responses.
+There is no real backend in the brief, so the project uses an in-memory mock API.
+The mock API still follows backend-like contracts:
 
-## Decisions
+- pagination
+- filtering
+- sorting
+- cursor-based feeds
+- versioned writes
+- conflict responses
 
-### React Query for Server State
+The goal is to make the frontend architecture close to what would be used
+against real HTTP endpoints, without adding unnecessary infrastructure to the
+challenge.
 
-React Query is used for bookings, booking detail, timelines, and activity feed data.
+## Decision 1: React Query For Server State
 
-Reasons:
+### Decision
 
-- It models async server state directly, including loading, caching, invalidation, and mutation state.
-- Query keys naturally represent server-side table state: page, page size, filters, and sorting.
-- `useMutation` gives a clear optimistic update lifecycle: cancel queries, snapshot cache, patch cache, rollback, reconcile.
-- Infinite queries fit the timeline and activity feed requirements without custom pagination state machines.
-- It supports cache patching for real-time events without forcing a full refetch.
+Use React Query for bookings, booking detail, booking timelines, and activity
+feed data.
 
-Trade-off:
+### Rationale
 
-- React Query is not used for purely local UI preferences because that would overfit server-state tooling to client-state concerns.
+React Query matches the problem domain well because most application state is
+server-derived and asynchronous. It handles loading states, cache ownership,
+query keys, mutation lifecycles, and cache updates without requiring custom
+request state machines.
 
-### Zustand for Client State
+The bookings query key includes the current table state:
 
-Zustand is used for persisted table preferences and the offline queue.
+- page index
+- page size
+- filters
+- sorting
 
-Reasons:
+This mirrors how a production backend endpoint would be queried.
 
-- The state is small, local, and UI/application specific.
-- It avoids Redux boilerplate for a challenge-sized app.
-- Zustand persistence makes column visibility, page size, and queued offline actions straightforward.
-- It keeps offline replay explicit and inspectable.
+React Query mutations also provide a clear optimistic update lifecycle:
 
-Trade-off:
+- cancel relevant queries
+- snapshot previous cached data
+- patch the cache optimistically
+- rollback on failure
+- reconcile with the server response
 
-- Redux Toolkit could be useful in a larger organization with established Redux conventions, but here it would add ceremony without improving the core behavior.
+### Trade-Offs
 
-### Feature-First Folder Structure
+React Query is not used for purely local UI state such as column visibility or
+offline queue metadata. Using server-state tooling for local preferences would
+make the state model less clear.
 
-The app uses feature folders:
+## Decision 2: Zustand For Client State
+
+### Decision
+
+Use Zustand for persisted table preferences and offline queue state.
+
+### Rationale
+
+The local state in this app is small and application-specific. Zustand keeps
+that state explicit without the ceremony of Redux-style reducers, actions, and
+selectors.
+
+Zustand persistence is used for:
+
+- column visibility preferences
+- preferred page size
+- queued offline actions
+
+This keeps browser-local state separate from React Query's server cache.
+
+### Trade-Offs
+
+Redux Toolkit would be reasonable in a larger team with an established Redux
+standard. For this challenge, it would add boilerplate without improving the
+core behavior being evaluated.
+
+## Decision 3: Feature-First Folder Structure
+
+### Decision
+
+Organize code by domain feature rather than by technical type.
+
+Current feature folders:
 
 - `features/bookings`
 - `features/timeline`
@@ -49,54 +102,88 @@ The app uses feature folders:
 - `features/realtime`
 - `features/offline`
 
-Reasons:
+### Rationale
 
-- Each domain owns its API, hooks, cache helpers, types, and stores.
-- It is easier to review than generic `components`, `hooks`, and `utils` buckets.
-- The boundaries mirror the challenge requirements and make future extraction or backend integration clearer.
+Each feature owns its API functions, hooks, cache helpers, types, and local
+stores. This makes the code easier to review because the folder boundaries match
+the challenge requirements.
 
-Trade-off:
+This structure also makes future extraction easier. For example, the bookings
+mock API could later be replaced with HTTP calls without touching activity or
+timeline internals.
 
-- Some shared primitives could be extracted later, but premature generalization would make the challenge harder to evaluate.
+### Trade-Offs
 
-### TanStack Table
+Some primitives could be moved into a shared UI or utilities layer later.
+The project avoids premature shared abstractions until reuse is clear.
 
-TanStack Table is used for booking table state and rendering.
+## Decision 4: TanStack Table
 
-Reasons:
+### Decision
 
-- It supports headless, controlled table state.
-- Server-side pagination, sorting, filtering, row selection, and column visibility are first-class patterns.
-- It avoids coupling the implementation to a prebuilt table UI library.
+Use TanStack Table for the booking management table.
 
-Trade-off:
+### Rationale
 
-- It requires more explicit markup and state wiring, but that is useful here because the challenge evaluates table architecture.
+The challenge requires advanced table behavior:
 
-### TanStack Virtual
+- server-side pagination
+- server-side sorting
+- server-side filtering
+- column visibility
+- row selection
+- bulk actions
 
-TanStack Virtual is used for the bookings table body.
+TanStack Table is headless, so it provides the table state model without forcing
+a prebuilt visual design. That keeps the implementation flexible and makes the
+data flow explicit.
 
-Reasons:
+### Trade-Offs
 
-- It keeps DOM size bounded even when the page size is increased.
-- It demonstrates the rendering strategy needed for large operational datasets.
-- It works well with a headless table implementation.
+Headless table libraries require more wiring than prebuilt table components.
+That extra wiring is acceptable here because the challenge evaluates table
+architecture and state management.
 
-Trade-off:
+## Decision 5: TanStack Virtual
 
-- Virtualized table markup needs fixed row height and stable column sizing to avoid layout drift.
+### Decision
 
-### Mock API Instead of MSW
+Use TanStack Virtual for the bookings table body.
 
-The app currently uses in-memory API modules rather than MSW handlers.
+### Rationale
 
-Reasons:
+The dataset contains 100,000 generated bookings. Even though the table uses
+server-side pagination, page sizes can still be large. Virtualization keeps the
+number of mounted rows bounded while preserving responsive scrolling.
 
-- The challenge has no real backend contract.
-- In-memory APIs are enough to demonstrate server-side pagination, conflicts, realtime simulation, and offline replay.
-- Keeping the API as plain async functions makes tests direct and fast.
+### Trade-Offs
 
-Trade-off:
+Virtualized table layouts need stable row heights and explicit column sizing.
+This adds layout constraints, but it prevents the DOM from growing with large
+page sizes.
 
-- MSW would be a good next step if the goal were to test browser-level HTTP behavior.
+## Decision 6: In-Memory Mock API Instead Of MSW
+
+### Decision
+
+Use plain in-memory async API modules instead of MSW handlers.
+
+### Rationale
+
+The challenge does not provide a real HTTP contract. In-memory API modules are
+enough to demonstrate:
+
+- server-side pagination
+- filtering and sorting
+- real-time event simulation
+- optimistic updates
+- stale-write conflicts
+- offline replay
+
+Plain async functions also keep unit tests direct and fast.
+
+### Trade-Offs
+
+MSW would be a good next step if the goal were browser-level HTTP integration
+testing or contract testing. For this challenge, the extra HTTP simulation layer
+would add setup cost without changing the core frontend architecture.

@@ -1,130 +1,200 @@
 # Performance Report
 
+## Summary
+
+The app simulates a marketplace operations dashboard with 100,000 generated
+bookings. The browser never renders or processes the full dataset as UI rows.
+
+The bookings table uses server-side table state and requests only the current
+page from the mock API. Activity and timeline views use cursor-style infinite
+queries because those features are naturally feed-based.
+
 ## Dataset Strategy
 
-The mock API generates 100,000 bookings in memory, but the UI never renders the full dataset. The bookings page requests only the current server-side paginated page using the active table state:
+The mock API accepts the same state a real backend endpoint would expect:
 
 - `pageIndex`
 - `pageSize`
 - `filters`
 - `sorting`
 
-This mirrors a production backend contract where filtering, sorting, and pagination happen outside the browser.
+Filtering, sorting, and pagination happen inside the mock API layer. In a real
+system, the same contract would map to database queries, search indexes, or
+backend service calls.
 
-## Optimizations Applied
+The frontend receives only the current page of bookings, plus a total count.
+This avoids rendering or storing 100,000 visible table rows in React.
 
-### Server-Side Table State
+## Applied Optimizations
 
-Filtering, sorting, and pagination are handled by the mock API layer. The table sends state through the React Query key, so each unique table state has its own cached result.
+### 1. Server-Side Table State
+
+The bookings table is controlled by React state and passes that state into the
+booking query key.
+
+Included table state:
+
+- page index
+- page size
+- search/filter values
+- sorting
 
 Benefit:
 
-- The browser does not need to hold or render filtered table results for the entire dataset.
+- The UI works with one page of data at a time.
+- Pagination, filtering, and sorting remain stable across re-renders.
+- React Query can cache each unique table state separately.
 
 Trade-off:
 
-- The mock API still filters an in-memory array because there is no backend. In a real system this work would move to database queries or indexed search.
+- The mock API still filters and sorts an in-memory array because there is no
+  backend. In production, this work should move to the server.
 
-### Debounced Search
+### 2. Debounced Search
 
-Booking and activity search inputs keep local text state immediately, but pass debounced values into React Query.
+Booking search, booking agent filtering, and activity search keep immediate
+input state locally. The values passed into React Query are debounced.
 
 Benefit:
 
 - Typing does not create a new query key on every keystroke.
-- Backend pressure would be lower in a real deployment.
+- A real backend would receive fewer search requests.
+- The inputs still feel responsive because local text updates immediately.
 
 Trade-off:
 
-- Search results intentionally lag behind typing by a short delay.
+- Search results intentionally update after a short delay.
 
-### Virtualized Table Body
+### 3. Virtualized Booking Rows
 
-The bookings table uses `@tanstack/react-virtual` to render only visible rows plus overscan.
+The bookings table body uses `@tanstack/react-virtual`.
 
 Benefit:
 
-- Page sizes of 250 or 500 rows do not create 250 or 500 mounted row components at once.
-- Scrolling remains responsive because DOM size stays small.
+- Large page sizes do not mount every row component at once.
+- Scroll performance stays predictable.
+- DOM size remains bounded.
 
 Trade-off:
 
-- Fixed row height and explicit column sizes are needed for reliable layout.
+- Virtualization requires stable row height and explicit column sizing.
+- Table markup is more custom than a standard static table.
 
-### Memoized Table Configuration
+### 4. Memoized Table Configuration
 
-Column definitions are memoized with `useMemo`, and virtual rows are rendered through a memoized row component.
+Column definitions are memoized with `useMemo`.
 
 Benefit:
 
-- Avoids recreating table column configuration on each render.
-- Reduces row rerender churn while scrolling.
+- TanStack Table receives stable column definitions.
+- Avoids unnecessary recalculation of table configuration.
 
 Trade-off:
 
-- Memoization is used only where object identity matters. Over-memoizing every small value would make the code harder to maintain.
+- Memoization is used only where object identity matters. Overusing memoization
+  would make the code harder to follow without a meaningful performance gain.
 
-### React Query Cache Patching
+### 5. React Query Cache Patching
 
-Realtime events update cached booking pages through `queryClient.setQueriesData`.
+Real-time events and optimistic mutations update cached booking pages through
+`queryClient.setQueriesData`.
 
 Benefit:
 
-- Visible cached pages update without resetting pagination, filters, or sorting.
-- No broad refetch is needed for every event.
+- Visible cached pages update without forcing a full refetch.
+- Pagination, filters, and sorting are preserved.
+- Agent actions feel immediate.
 
 Trade-off:
 
-- Only cached pages are patched. Non-cached pages naturally receive fresh state when queried.
+- Cache patching scans cached booking pages. This is fine for the challenge,
+  but a very large long-lived session may need more targeted cache indexing.
 
-### Event Deduplication and Version Checks
+### 6. Event Deduplication And Version Checks
 
-Realtime events are deduplicated by event id. Booking updates are ignored if the event version is older than or equal to the cached booking version.
+Real-time events are deduplicated by event id. Booking updates are ignored if
+their version is older than or equal to the cached booking version.
 
 Benefit:
 
-- Duplicate socket events do not cause repeated cache work.
-- Stale events cannot overwrite newer optimistic or server-confirmed state.
+- Duplicate socket events do not repeatedly patch the cache.
+- Stale events cannot overwrite newer optimistic or confirmed state.
 
 Trade-off:
 
-- The client keeps a bounded in-memory set of recently processed event ids.
+- The client keeps a bounded in-memory set of processed event ids.
 
-### Optimistic Updates with Rollback
+### 7. Optimistic Updates With Rollback
 
-Mutations snapshot affected booking queries, optimistically patch status or driver assignment, and rollback on failure. Conflicts restore latest server state.
+Status updates and driver assignment use optimistic cache updates.
+
+Mutation flow:
+
+1. Snapshot affected booking query data.
+2. Apply an optimistic cache patch.
+3. Reconcile with the server response on success.
+4. Roll back or restore latest server state on failure/conflict.
 
 Benefit:
 
 - Agent actions feel immediate.
-- Stale data is handled without silently overwriting another agent's update.
+- Conflicts are surfaced instead of silently overwriting newer data.
 
 Trade-off:
 
 - Optimistic updates add cache complexity and require versioned writes.
 
-### Offline Queue
+### 8. Offline Queue
 
-Offline actions are stored in Zustand persistence and replayed when the browser returns online.
+Offline actions are persisted with Zustand and replayed when the browser returns
+online.
 
 Benefit:
 
 - Agents can continue work during temporary connection loss.
-- Queued actions survive reloads.
+- Queued actions survive page reloads.
 
 Trade-off:
 
-- Conflicts may still occur during replay and must be surfaced clearly.
+- Conflicts can still occur during replay and must be communicated clearly.
 
 ## Potential Bottlenecks
 
-- The mock API filters and sorts 100,000 in-memory bookings. This is acceptable for the challenge but should be moved server-side in production.
-- Realtime cache patching scans cached pages. This is fine for a few cached pages, but a very long-lived session with many cached pages may need targeted cache indexing.
-- Infinite feeds can grow over long sessions. Production apps often cap retained pages or use cache garbage collection based on usage.
+### Mock API Work
+
+The mock API filters and sorts 100,000 in-memory bookings.
+
+This is acceptable for the challenge because there is no backend, but it is not
+how production should handle large datasets. In production, the server should
+own filtering, sorting, pagination, and indexing.
+
+### Cache Patching Scope
+
+Real-time updates scan cached booking pages.
+
+This is acceptable for a small number of cached pages. A production dashboard
+with very long sessions could introduce targeted cache indexing or more focused
+query invalidation.
+
+### Infinite Feed Retention
+
+Activity and timeline feeds can retain many loaded pages.
+
+Production systems often cap retained pages, tune React Query garbage
+collection, or provide feed windowing for very long sessions.
+
+### Bundle Size
+
+Vite reports a chunk-size warning after production builds.
+
+This is not currently blocking functionality. A production follow-up would be to
+split route-level bundles with dynamic imports.
 
 ## Production Follow-Ups
 
-- Move mock API behavior behind HTTP endpoints or MSW handlers.
+- Replace mock API modules with real HTTP endpoints.
 - Add backend cursor contracts for activity and timeline feeds.
-- Add metrics for mutation latency, conflict rate, replay success rate, and socket event volume.
+- Add route-level code splitting.
 - Add browser-level Playwright tests for critical flows.
+- Add metrics for mutation latency, conflict rate, replay success rate, and
+  real-time event volume.
