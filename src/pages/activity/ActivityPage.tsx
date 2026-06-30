@@ -1,47 +1,55 @@
-import { Loader2, Search } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useActivityFeed } from '../../features/activity/hooks/useActivityFeed'
+import { Loader2, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { useActivityFeed } from "../../features/activity/hooks/useActivityFeed";
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 export function ActivityPage() {
-  const [search, setSearch] = useState('')
-  const loadMoreRef = useRef<HTMLDivElement>(null)
-  const activityQuery = useActivityFeed(search)
+  const [search, setSearch] = useState("");
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const activityQuery = useActivityFeed(search);
   const activities = useMemo(
-    () => activityQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    () => {
+      const uniqueActivities = new Map(
+        activityQuery.data?.pages
+          .flatMap((page) => page.items)
+          .map((activity) => [activity.id, activity]) ?? [],
+      );
+
+      return Array.from(uniqueActivities.values());
+    },
     [activityQuery.data],
-  )
-  const total = activityQuery.data?.pages[0]?.total ?? 0
+  );
+  const total = activityQuery.data?.pages[0]?.total ?? 0;
 
   useEffect(() => {
-    const target = loadMoreRef.current
-    if (!target) return
+    const target = loadMoreRef.current;
+    if (!target) return;
 
     const observer = new IntersectionObserver((entries) => {
-      const [entry] = entries
+      const [entry] = entries;
 
       if (
         entry.isIntersecting &&
         activityQuery.hasNextPage &&
         !activityQuery.isFetchingNextPage
       ) {
-        void activityQuery.fetchNextPage()
+        void activityQuery.fetchNextPage();
       }
-    })
+    });
 
-    observer.observe(target)
+    observer.observe(target);
 
-    return () => observer.disconnect()
+    return () => observer.disconnect();
   }, [
     activityQuery.fetchNextPage,
     activityQuery.hasNextPage,
     activityQuery.isFetchingNextPage,
-  ])
+  ]);
 
   return (
     <section className="space-y-5" aria-labelledby="activity-heading">
@@ -85,8 +93,8 @@ export function ActivityPage() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-sm text-slate-900">
-                    <span className="font-semibold">{activity.actorName}</span>{' '}
-                    {activity.action}{' '}
+                    <span className="font-semibold">{activity.actorName}</span>{" "}
+                    {activity.action}{" "}
                     <Link
                       className="font-semibold text-blue-700 hover:text-blue-900 hover:underline"
                       to={`/bookings/${activity.bookingId}`}
@@ -117,7 +125,10 @@ export function ActivityPage() {
           </div>
         ) : null}
 
-        <div ref={loadMoreRef} className="p-5 text-center text-sm text-slate-600">
+        <div
+          ref={loadMoreRef}
+          className="p-5 text-center text-sm text-slate-600"
+        >
           {activityQuery.isLoading || activityQuery.isFetchingNextPage ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 className="animate-spin" size={16} />
@@ -125,10 +136,10 @@ export function ActivityPage() {
             </span>
           ) : null}
           {!activityQuery.hasNextPage && activities.length > 0
-            ? 'End of activity feed'
+            ? "End of activity feed"
             : null}
         </div>
       </div>
     </section>
-  )
+  );
 }

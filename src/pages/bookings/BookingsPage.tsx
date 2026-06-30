@@ -11,7 +11,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, ChevronUp, Eye, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { memo, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { BookingConflictError } from '../../features/bookings/api/bookingsApi'
@@ -515,7 +515,7 @@ function BulkActionButton({
   )
 }
 
-const VirtualizedBookingRow = memo(function VirtualizedBookingRow({
+function VirtualizedBookingRow({
   row,
   top,
 }: {
@@ -538,7 +538,7 @@ const VirtualizedBookingRow = memo(function VirtualizedBookingRow({
       ))}
     </tr>
   )
-})
+}
 
 function ColumnVisibilityMenu({
   table,
