@@ -8,7 +8,7 @@ import { BookingsPage } from '../pages/bookings/BookingsPage'
 function AppLayout() {
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-blue-600 text-white sm:h-10 sm:w-10">
