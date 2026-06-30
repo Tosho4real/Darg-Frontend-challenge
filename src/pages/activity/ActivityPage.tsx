@@ -87,41 +87,50 @@ export function ActivityPage() {
           </label>
         </div>
 
-        <ol className="divide-y divide-slate-100" aria-label="Activity events">
-          {activities.map((activity) => (
-            <li key={activity.id} className="p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-sm text-slate-900">
-                    <span className="font-semibold">{activity.actorName}</span>{" "}
-                    {activity.action}{" "}
-                    <Link
-                      className="font-semibold text-blue-700 hover:text-blue-900 hover:underline"
-                      to={`/bookings/${activity.bookingId}`}
-                    >
-                      {activity.bookingId}
-                    </Link>
-                  </p>
-                  {activity.status ? (
-                    <p className="mt-1 text-xs font-medium uppercase text-slate-500">
-                      Status: {activity.status}
+        {activityQuery.isLoading ? (
+          <ActivitySkeleton />
+        ) : (
+          <ol className="divide-y divide-slate-100" aria-label="Activity events">
+            {activities.map((activity) => (
+              <li key={activity.id} className="p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm text-slate-900">
+                      <span className="font-semibold">{activity.actorName}</span>{" "}
+                      {activity.action}{" "}
+                      <Link
+                        className="font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+                        to={`/bookings/${activity.bookingId}`}
+                      >
+                        {activity.bookingId}
+                      </Link>
                     </p>
-                  ) : null}
+                    {activity.status ? (
+                      <p className="mt-1 text-xs font-medium uppercase text-slate-500">
+                        Status: {activity.status}
+                      </p>
+                    ) : null}
+                  </div>
+                  <time
+                    className="text-sm text-slate-500"
+                    dateTime={activity.createdAt}
+                  >
+                    {dateFormatter.format(new Date(activity.createdAt))}
+                  </time>
                 </div>
-                <time
-                  className="text-sm text-slate-500"
-                  dateTime={activity.createdAt}
-                >
-                  {dateFormatter.format(new Date(activity.createdAt))}
-                </time>
-              </div>
-            </li>
-          ))}
-        </ol>
+              </li>
+            ))}
+          </ol>
+        )}
 
         {activities.length === 0 && !activityQuery.isLoading ? (
-          <div className="p-8 text-center text-sm text-slate-600">
-            No activity found.
+          <div className="p-10 text-center">
+            <p className="text-sm font-semibold text-slate-900">
+              No activity found
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              Adjust your search to find matching audit events.
+            </p>
           </div>
         ) : null}
 
@@ -129,7 +138,7 @@ export function ActivityPage() {
           ref={loadMoreRef}
           className="p-5 text-center text-sm text-slate-600"
         >
-          {activityQuery.isLoading || activityQuery.isFetchingNextPage ? (
+          {activityQuery.isFetchingNextPage ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 className="animate-spin" size={16} />
               Loading activity
@@ -141,5 +150,23 @@ export function ActivityPage() {
         </div>
       </div>
     </section>
+  );
+}
+
+function ActivitySkeleton() {
+  return (
+    <div className="divide-y divide-slate-100" aria-hidden="true">
+      {Array.from({ length: 8 }, (_, index) => (
+        <div key={index} className="p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="w-full max-w-xl space-y-2">
+              <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+              <div className="h-3 w-1/4 animate-pulse rounded bg-slate-100" />
+            </div>
+            <div className="h-4 w-36 animate-pulse rounded bg-slate-100" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

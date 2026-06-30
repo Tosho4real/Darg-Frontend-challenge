@@ -1,5 +1,7 @@
-import type { QueryClient } from '@tanstack/react-query'
+import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import type { Booking, BookingsResponse } from '../types'
+
+type BookingCacheData = BookingsResponse | InfiniteData<BookingsResponse>
 
 export function patchBookingsInCache(
   queryClient: QueryClient,
@@ -8,17 +10,13 @@ export function patchBookingsInCache(
 ) {
   const bookingIdSet = new Set(bookingIds)
 
-  queryClient.setQueriesData<BookingsResponse>(
+  queryClient.setQueriesData<BookingCacheData>(
     { queryKey: ['bookings'] },
     (current) => {
       if (!current) return current
-
-      return {
-        ...current,
-        rows: current.rows.map((booking) =>
-          bookingIdSet.has(booking.id) ? updateBooking(booking) : booking,
-        ),
-      }
+      return patchBookingCacheData(current, (booking) =>
+        bookingIdSet.has(booking.id) ? updateBooking(booking) : booking,
+      )
     },
   )
 }
@@ -31,17 +29,34 @@ export function patchResolvedBookingsInCache(
     updatedBookings.map((booking) => [booking.id, booking]),
   )
 
-  queryClient.setQueriesData<BookingsResponse>(
+  queryClient.setQueriesData<BookingCacheData>(
     { queryKey: ['bookings'] },
     (current) => {
       if (!current) return current
-
-      return {
-        ...current,
-        rows: current.rows.map(
-          (booking) => bookingById.get(booking.id) ?? booking,
-        ),
-      }
+      return patchBookingCacheData(
+        current,
+        (booking) => bookingById.get(booking.id) ?? booking,
+      )
     },
   )
+}
+
+function patchBookingCacheData(
+  current: BookingCacheData,
+  updateBooking: (booking: Booking) => Booking,
+): BookingCacheData {
+  if ('pages' in current) {
+    return {
+      ...current,
+      pages: current.pages.map((page) => ({
+        ...page,
+        rows: page.rows.map(updateBooking),
+      })),
+    }
+  }
+
+  return {
+    ...current,
+    rows: current.rows.map(updateBooking),
+  }
 }

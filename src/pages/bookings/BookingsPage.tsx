@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import {
   type ColumnDef,
   flexRender,
@@ -9,15 +10,15 @@ import {
   type VisibilityState,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDown, ChevronUp, Eye, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useMemo, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BookingConflictError } from '../../features/bookings/api/bookingsApi'
 import { patchBookingsInCache } from '../../features/bookings/cache/bookingsCache'
 import { StatusBadge } from '../../features/bookings/components/StatusBadge'
-import { useBookingsQuery } from '../../features/bookings/hooks/useBookingsQuery'
+import { useInfiniteBookingsQuery } from '../../features/bookings/hooks/useBookingsQuery'
 import { useUpdateBookingStatus } from '../../features/bookings/hooks/useUpdateBookingStatus'
 import { useTablePreferencesStore } from '../../features/bookings/stores/tablePreferencesStore'
 import type {
@@ -50,6 +51,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
 export function BookingsPage() {
   const queryClient = useQueryClient()
   const tableContainerRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
   const persistedColumnVisibility = useTablePreferencesStore(
     (state) => state.columnVisibility,
   )
@@ -61,10 +63,7 @@ export function BookingsPage() {
     (state) => state.setPageSize,
   )
 
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: persistedPageSize,
-  })
+  const [pageSize, setPageSize] = useState(persistedPageSize)
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'createdAt', desc: true },
   ])
@@ -79,12 +78,16 @@ export function BookingsPage() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [actionMessage, setActionMessage] = useState<string | null>(null)
 
-  const bookingQuery = useBookingsQuery({
-    pageIndex: pagination.pageIndex,
-    pageSize: pagination.pageSize,
+  const bookingQuery = useInfiniteBookingsQuery({
+    pageSize,
     filters,
     sorting: sorting as BookingSort[],
   })
+  const bookings = useMemo(
+    () => bookingQuery.data?.pages.flatMap((page) => page.rows) ?? [],
+    [bookingQuery.data],
+  )
+  const totalBookings = bookingQuery.data?.pages[0]?.total ?? 0
   const statusMutation = useUpdateBookingStatus()
   const isOnline = useOfflineQueueStore((state) => state.isOnline)
   const queuedActionCount = useOfflineQueueStore(
@@ -102,9 +105,9 @@ export function BookingsPage() {
         size: 56,
         header: ({ table }) => (
           <input
-            aria-label="Select all visible bookings"
-            checked={table.getIsAllPageRowsSelected()}
-            onChange={table.getToggleAllPageRowsSelectedHandler()}
+            aria-label="Select all loaded bookings"
+            checked={table.getIsAllRowsSelected()}
+            onChange={table.getToggleAllRowsSelectedHandler()}
             type="checkbox"
           />
         ),
@@ -165,27 +168,21 @@ export function BookingsPage() {
   )
 
   const table = useReactTable({
-    data: bookingQuery.data?.rows ?? [],
+    data: bookings,
     columns,
-    rowCount: bookingQuery.data?.total ?? 0,
+    rowCount: totalBookings,
     state: {
-      pagination,
       sorting,
       columnVisibility,
       rowSelection,
     },
     getRowId: (row) => row.id,
-    manualPagination: true,
     manualSorting: true,
     enableRowSelection: true,
-    onPaginationChange: (updater) => {
-      setPagination((current) => {
-        const next = typeof updater === 'function' ? updater(current) : updater
-        setPersistedPageSize(next.pageSize)
-        return next
-      })
+    onSortingChange: (updater) => {
+      setSorting(updater)
+      setRowSelection({})
     },
-    onSortingChange: setSorting,
     onColumnVisibilityChange: (updater) => {
       setColumnVisibility((current) => {
         const next = typeof updater === 'function' ? updater(current) : updater
@@ -208,13 +205,44 @@ export function BookingsPage() {
     overscan: 8,
   })
   const virtualRows = rowVirtualizer.getVirtualItems()
+  const hasNoBookings =
+    !bookingQuery.isLoading && !bookingQuery.isFetching && bookings.length === 0
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    const root = tableContainerRef.current
+    if (!target || !root) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+
+        if (
+          entry.isIntersecting &&
+          bookingQuery.hasNextPage &&
+          !bookingQuery.isFetchingNextPage
+        ) {
+          void bookingQuery.fetchNextPage()
+        }
+      },
+      { root, rootMargin: '160px' },
+    )
+
+    observer.observe(target)
+
+    return () => observer.disconnect()
+  }, [
+    bookingQuery.fetchNextPage,
+    bookingQuery.hasNextPage,
+    bookingQuery.isFetchingNextPage,
+  ])
 
   function updateFilter<Key extends keyof BookingFilters>(
     key: Key,
     value: BookingFilters[Key],
   ) {
     setFilters((current) => ({ ...current, [key]: value }))
-    setPagination((current) => ({ ...current, pageIndex: 0 }))
+    setRowSelection({})
   }
 
   async function runBulkAction(status: BookingStatus) {
@@ -284,7 +312,7 @@ export function BookingsPage() {
             Booking Management
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Server-style filtering, sorting, pagination, persisted table
+            Server-style filtering, sorting, infinite loading, persisted table
             preferences, row selection, and bulk actions over 100,000 bookings.
           </p>
         </div>
@@ -301,7 +329,7 @@ export function BookingsPage() {
             />
             {isOnline ? 'Live' : 'Offline'}
           </span>
-          {bookingQuery.data?.total.toLocaleString() ?? '...'} matching bookings
+          {totalBookings.toLocaleString()} matching bookings
           {queuedActionCount > 0 ? (
             <span className="ml-3 text-amber-700">
               {queuedActionCount} queued
@@ -433,64 +461,114 @@ export function BookingsPage() {
                 </tr>
               ))}
             </thead>
-            <tbody
-              className="relative grid"
-              style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-            >
-              {virtualRows.map((virtualRow) => (
-                <VirtualizedBookingRow
-                  key={tableRows[virtualRow.index].id}
-                  row={tableRows[virtualRow.index]}
-                  top={virtualRow.start}
-                />
-              ))}
-            </tbody>
+            {bookingQuery.isLoading ? (
+              <BookingTableSkeleton columnCount={table.getVisibleLeafColumns().length} />
+            ) : (
+              <tbody
+                className="relative grid"
+                style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+              >
+                {virtualRows.map((virtualRow) => (
+                  <VirtualizedBookingRow
+                    key={tableRows[virtualRow.index].id}
+                    row={tableRows[virtualRow.index]}
+                    top={virtualRow.start}
+                  />
+                ))}
+              </tbody>
+            )}
           </table>
+
+          {hasNoBookings ? (
+            <EmptyState
+              title="No bookings found"
+              description="Adjust your search or filters to find matching bookings."
+            />
+          ) : null}
+
+          <div ref={loadMoreRef} className="p-4 text-center text-sm text-slate-600">
+            {bookingQuery.isFetchingNextPage ? 'Loading more bookings...' : null}
+            {!bookingQuery.hasNextPage && bookings.length > 0
+              ? 'End of bookings'
+              : null}
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-600" aria-live="polite">
             {selectedBookingIds.length} selected
-            {bookingQuery.isFetching ? ' | Refreshing...' : ''}
+            {bookingQuery.isFetching && !bookingQuery.isFetchingNextPage
+              ? ' | Refreshing...'
+              : ''}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <select
-              aria-label="Rows per page"
+              aria-label="Rows loaded per server request"
               className="h-9 rounded border border-slate-300 px-2 text-sm"
-              value={pagination.pageSize}
-              onChange={(event) =>
-                table.setPageSize(Number(event.target.value))
-              }
+              value={pageSize}
+              onChange={(event) => {
+                const nextPageSize = Number(event.target.value)
+                setPageSize(nextPageSize)
+                setPersistedPageSize(nextPageSize)
+                setRowSelection({})
+              }}
             >
-              {[10, 25, 50, 100, 250, 500].map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize} rows
+              {[25, 50, 100, 250, 500].map((pageSizeOption) => (
+                <option key={pageSizeOption} value={pageSizeOption}>
+                  {pageSizeOption} rows
                 </option>
               ))}
             </select>
-            <button
-              className="h-9 rounded border border-slate-300 px-3 text-sm disabled:opacity-50"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-              type="button"
-            >
-              Previous
-            </button>
             <span className="text-sm text-slate-600">
-              Page {pagination.pageIndex + 1} of {table.getPageCount()}
+              Showing {bookings.length.toLocaleString()} of{' '}
+              {totalBookings.toLocaleString()}
             </span>
             <button
               className="h-9 rounded border border-slate-300 px-3 text-sm disabled:opacity-50"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
+              disabled={!bookingQuery.hasNextPage || bookingQuery.isFetchingNextPage}
+              onClick={() => void bookingQuery.fetchNextPage()}
               type="button"
             >
-              Next
+              Load more
             </button>
           </div>
         </div>
       </div>
     </section>
+  )
+}
+
+function BookingTableSkeleton({ columnCount }: { columnCount: number }) {
+  return (
+    <tbody className="grid" aria-hidden="true">
+      {Array.from({ length: 10 }, (_, rowIndex) => (
+        <tr key={rowIndex} className="flex w-full">
+          {Array.from({ length: columnCount }, (_, cellIndex) => (
+            <td
+              key={cellIndex}
+              className="h-14 flex-1 border-b border-slate-100 px-4 py-3"
+            >
+              <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </tbody>
+  )
+}
+
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <div className="p-10 text-center">
+      <p className="text-sm font-semibold text-slate-900">{title}</p>
+      <p className="mt-1 text-sm text-slate-600">{description}</p>
+    </div>
   )
 }
 
@@ -545,41 +623,44 @@ function ColumnVisibilityMenu({
 }: {
   table: ReturnType<typeof useReactTable<Booking>>
 }) {
-  const [open, setOpen] = useState(false)
-
   return (
-    <div className="relative">
-      <button
-        aria-expanded={open}
-        className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium"
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        <Eye aria-hidden="true" size={16} />
-        Columns
-      </button>
-      {open ? (
-        <div className="absolute right-0 z-10 mt-2 w-56 rounded border border-slate-200 bg-white p-2 shadow-lg">
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium"
+          type="button"
+        >
+          <Eye aria-hidden="true" size={16} />
+          Columns
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          className="z-20 w-56 rounded border border-slate-200 bg-white p-2 shadow-lg"
+          sideOffset={8}
+        >
           {table
             .getAllLeafColumns()
             .filter((column) => column.id !== 'select')
             .map((column) => (
-              <label
+              <DropdownMenu.CheckboxItem
                 key={column.id}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-slate-50"
+                checked={column.getIsVisible()}
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm outline-none hover:bg-slate-50 focus:bg-slate-50"
+                onCheckedChange={(checked) => column.toggleVisibility(!!checked)}
+                onSelect={(event) => event.preventDefault()}
               >
-                <input
-                  checked={column.getIsVisible()}
-                  onChange={column.getToggleVisibilityHandler()}
-                  type="checkbox"
-                />
+                <span className="w-4 text-blue-600">
+                  <DropdownMenu.ItemIndicator>✓</DropdownMenu.ItemIndicator>
+                </span>
                 <span className="capitalize">
                   {column.id.replace(/([A-Z])/g, ' $1')}
                 </span>
-              </label>
+              </DropdownMenu.CheckboxItem>
             ))}
-        </div>
-      ) : null}
-    </div>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   )
 }

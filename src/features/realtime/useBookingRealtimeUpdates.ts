@@ -1,9 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { prependActivityToCache } from '../activity/cache/activityCache'
-import type { Booking, BookingsResponse } from '../bookings/types'
+import { patchBookingsInCache } from '../bookings/cache/bookingsCache'
 import { subscribeToMockSocket } from './mockSocket'
-import type { RealtimeEvent } from './types'
 
 const processedEventIds = new Set<string>()
 const processedEventQueue: string[] = []
@@ -18,10 +17,15 @@ export function useBookingRealtimeUpdates() {
       rememberEvent(event.id)
 
       if (event.type === 'booking_updated') {
-        queryClient.setQueriesData<BookingsResponse>(
-          { queryKey: ['bookings'] },
-          (current) => patchBookingUpdatedEvent(current, event),
-        )
+        patchBookingsInCache(queryClient, [event.bookingId], (booking) => {
+          if (event.version <= booking.version) return booking
+
+          return {
+            ...booking,
+            status: event.status,
+            version: event.version,
+          }
+        })
       }
 
       if (event.type === 'activity_created') {
@@ -45,29 +49,4 @@ function rememberEvent(eventId: string) {
       processedEventIds.delete(expiredEventId)
     }
   }
-}
-
-function patchBookingUpdatedEvent(
-  current: BookingsResponse | undefined,
-  event: Extract<RealtimeEvent, { type: 'booking_updated' }>,
-) {
-  if (!current) return current
-
-  let changed = false
-  const rows = current.rows.map((booking) => {
-    if (booking.id !== event.bookingId) return booking
-
-    if (event.version <= booking.version) {
-      return booking
-    }
-
-    changed = true
-    return {
-      ...booking,
-      status: event.status,
-      version: event.version,
-    } satisfies Booking
-  })
-
-  return changed ? { ...current, rows } : current
 }
