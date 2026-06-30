@@ -156,4 +156,3 @@ React Query owns server/cache state. Zustand owns small client state such as tab
 - The backend is simulated with in-memory async functions because the challenge provides no API.
 - Search is immediate rather than debounced. In production, a short debounce would reduce backend pressure.
 - Activity and timeline infinite feeds retain loaded pages. Production implementations may cap retained pages for very long sessions.
-- MSW is installed but not currently used. Plain async API functions keep the challenge implementation and tests direct.
